@@ -46,22 +46,21 @@
 - **osu!mania 判定体系**：PERFECT / GREAT / GOOD / OK / MEH / MISS，带"早打惩罚"的 MEH 窗口
 - **ScoreV1 计分**：`base` 分 + `bonus` 分双段计算，bonus 会被 miss 清零，最大值 100 / 最小值 0
 - **血条**：命中回血、miss 掉血、固定的被动衰减，血量归零即失败
-- **成绩结算**：accuracy、最大连击、各判定数量、评级（SS/S/A/B/C/D）、判定误差分布
+- **成绩结算**：分数、accuracy、最大连击、六档判定数量、评级与 CLEARED / FAILED，可重试或回选曲
 - **完整流程**：主菜单 → 选曲 → 游玩 → 暂停 → 结算 → 重开
 - **谱面自动扫描**：把谱面目录丢进 `Content/Rhythm/Songs/` 就会被列出，不需要改代码
 - **原速音频同步**：音频从任意时间点开始播放都以字节偏移对齐，暂停/继续不跑调
 - **两种键位**：`A S ; '`（osu!mania 4K 默认）和 `D F J K`
-- **无头自动化**：`--self-test` 自动打一遍并输出 JSON 成绩，`--screenshot` 截图，方便回归测试
+- **自动化冒烟测试**：`--self-test` 用脚本按键真打一遍并输出分步报告，`--screenshot` 直接截图
 
 ## 操作方式
 
 | 操作 | 按键 |
 | --- | --- |
-| 移动选择 | `↑` `↓` / `W` `S` / 鼠标悬停 |
+| 移动选择 | `↑` `↓` / 鼠标悬停 |
 | 确认 | `Enter` / `Space` / 鼠标左键 |
-| 返回 | `Esc` / 鼠标右键 |
+| 返回 / 暂停 | `Esc` |
 | 打击（4K） | `A` `S` `;` `'` 或 `D` `F` `J` `K` |
-| 暂停 | `Esc`（游玩中） |
 
 ## 构建与运行
 
@@ -174,20 +173,35 @@ score = unit × Σ HitValue + unit × Σ(HitBonusValue × HitBonus)
 
 | 参数 | 作用 |
 | --- | --- |
-| `--screenshot <png>` | 启动后截一张图保存到指定路径然后退出 |
-| `--self-test <json>` | 自动模式跑完当前选中的谱面，把成绩写成 JSON |
-| `--song <index>` | 指定要加载的曲目下标（配合上面两个使用） |
-| `--resume <ms>` | 从谱面的指定毫秒处开始 |
+| `--screenshot <png>` | 自动打开曲库第一首、自动播放几秒后截图保存，然后退出 |
+| `--self-test <json>` | 用脚本化的按键输入把曲库第一首从头打到尾，把成绩写成 JSON |
 | `-ResX= / -ResY=` | 标准 UE 参数，指定窗口分辨率（如 `-ResX=3840 -ResY=2160` 打 4K） |
 
 例如：
 
 ```bash
-Game.exe --self-test result.json --song 0
+Game.exe --self-test result.json
 Game.exe --screenshot shot.png -ResX=3840 -ResY=2160
 ```
 
-`--self-test` 的 JSON 里包含分数、accuracy、最大连击、各判定计数、评级和每个音符的误差，适合做回归对比。
+两个自动化入口都固定加载**曲库里的第一首**（排序规则见[已知限制](#已知限制)），
+所以想指定曲目，最简单的是调整 `Content/Rhythm/Songs/` 下的目录顺序/内容。
+
+`--self-test` 走的是真实的判定流程（脚本按键，而不是判定放宽的 autoplay），输出的不是单纯成绩单，
+而是一份**冒烟测试报告**：分 `move` / `act` / `hud` 三步，分别验证"轨道确实滚动且音符接近判定线"、
+"确实产生了判定"、"HUD 确实画出了分数/准确率/combo/血条"，每一步带 `passed` 和明细
+（命中数、各判定计数、最大连击），适合打包后做快速回归：
+
+```json
+{
+  "version": 1,
+  "steps": [
+    {"step": "move", "passed": true,  "detail": "playfield scrolled 812 px, 12 notes approached, 9 key presses"},
+    {"step": "act",  "passed": true,  "detail": "hit 12 notes: 9 perfect, 2 great, 1 good, ..."},
+    {"step": "hud",  "passed": true,  "detail": "drawn: score=yes accuracy=yes combo=yes health=yes judgement=yes"}
+  ]
+}
+```
 
 ## 项目结构
 
@@ -200,10 +214,10 @@ rhythm-echo/
 │   ├── DefaultGameUserSettings.ini# 1280×720 / 60fps / 关垂直同步
 │   └── DefaultInput.ini           # 输入映射、鼠标捕获策略
 ├── Source/
-│   ├── Game.Build.cs
-│   ├── Game.Target.cs
+│   ├── Game.Target.cs                # 游戏 / 编辑器两个 target
 │   ├── GameEditor.Target.cs
 │   └── Game/
+│       ├── Game.Build.cs
 │       ├── GameModule.cpp            # 模块入口
 │       ├── RhythmTypes.h             # FManiaNote / FRhythmChart / 解析接口
 │       ├── RhythmParse.cpp           # .osu 解析、曲库扫描、磁盘图片加载
@@ -243,6 +257,8 @@ rhythm-echo/
 - 只支持 `normal` 打击音，没有实现 `soft`/`drum` 音色组
 - 没有实现 osu! 的 `Storyboard`、`.osz` 直接读取、谱面在线下载
 - 不支持 mod（DT/HT/HR 等），`ManiaSpeed` 是写死的，没有做选项界面
+- 曲库排序里保留了一份开发时期的目录名优先级表（`azalea` / `psycho_heroes` / …），
+  表外的曲目按曲名排序；`--self-test` 等自动化入口固定用排第一的那首
 - 判定窗口的 OD 公式按 osu wiki 实现，但 MEH 的"早打才判"是从客户端行为反推的
 - 结算界面的评级和 combo 颜色是近似复刻，不是逐像素还原
 

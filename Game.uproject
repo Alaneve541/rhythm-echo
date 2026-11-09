@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{71CA7C07-4F97-BA76-EC0B-78B96318C9CA}",
+	"Category": "",
+	"Description": "4-key falling-note rhythm game rebuilt from the installed osu!mania library.",
+	"Modules": [
+		{
+			"Name": "Game",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

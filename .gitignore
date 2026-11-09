@@ -1,0 +1,28 @@
+# ---- Unreal Engine build artifacts ----
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+.ignore
+
+# ---- Local runtime content ----
+# Songs and skin samples are personal, non-redistributable game assets.
+# Only the folder descriptions are tracked; everything else stays local.
+Content/Rhythm/Songs/*
+!Content/Rhythm/Songs/README.md
+Content/Rhythm/Skin/*
+!Content/Rhythm/Skin/README.md
+
+# ---- OS / editor noise ----
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
